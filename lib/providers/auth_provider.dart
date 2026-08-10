@@ -1,40 +1,48 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthProvider with ChangeNotifier {
-  bool _isAuthenticated = false;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  User? _user;
   String? _employeeName;
   bool _isLoading = false;
   String? _errorMessage;
 
-  final Map<String, String> _credentials = {
-    'chahdgamal@nile.com': 'chAhd123@',
-  };
-  final Map<String, String> _names = {
-    'chahdgamal@nile.com': 'Chahd Gamal',
-  };
+  AuthProvider() {
+    _auth.authStateChanges().listen((User? user) {
+      _user = user;
+      if (user != null) _loadEmployeeData(user.uid);
+      notifyListeners();
+    });
+  }
 
-  bool get isAuthenticated => _isAuthenticated;
+  bool get isAuthenticated => _user != null;
   String? get employeeName => _employeeName;
-  String? get employeeId => 'employee_chahd';
+  String? get employeeId => _user?.uid;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  Future<bool> signIn(String email, String password) async {
-    _isLoading = true; _errorMessage = null; notifyListeners();
-    await Future.delayed(const Duration(seconds: 1));
-    
-    if (_credentials[email.toLowerCase()] == password) {
-      _isAuthenticated = true;
-      _employeeName = _names[email.toLowerCase()];
-      _isLoading = false; notifyListeners();
-      return true;
-    }
-    _errorMessage = 'Invalid email or password';
-    _isLoading = false; notifyListeners();
-    return false;
+  Future<void> _loadEmployeeData(String uid) async {
+    try {
+      final doc = await _firestore.collection('employees').doc(uid).get();
+      if (doc.exists) _employeeName = doc.data()?['name'];
+      notifyListeners();
+    } catch (e) {}
   }
 
-  Future<void> signOut() async {
-    _isAuthenticated = false; _employeeName = null; _errorMessage = null; notifyListeners();
+  Future<bool> signIn(String email, String password) async {
+    _isLoading = true; _errorMessage = null; notifyListeners();
+    try {
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      _isLoading = false; notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _errorMessage = e.message; _isLoading = false; notifyListeners();
+      return false;
+    }
   }
+
+  Future<void> signOut() async => await _auth.signOut();
 }

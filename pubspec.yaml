@@ -1,16 +1,23 @@
 name: nile_cruise_manager
-description: Nile Cruise Manager
+description: Nile Cruise Trips Management App
 publish_to: 'none'
 version: 1.0.0+1
+
 environment:
   sdk: '>=3.0.0 <4.0.0'
+
 dependencies:
   flutter:
     sdk: flutter
+  firebase_core: ^3.13.0
+  firebase_auth: ^5.5.2
+  cloud_firestore: ^5.6.6
   provider: ^6.1.1
   intl: ^0.18.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
 flutter:
   uses-material-design: true

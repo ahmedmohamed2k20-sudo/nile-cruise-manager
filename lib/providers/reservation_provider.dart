@@ -1,24 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ReservationProvider with ChangeNotifier {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   List<Map<String, dynamic>> _reservations = [];
+  DateTime _currentDate = DateTime.now();
   bool _isLoading = false;
+
   List<Map<String, dynamic>> get reservations => _reservations;
   bool get isLoading => _isLoading;
 
   Future<void> loadReservationsForDate(DateTime date) async {
+    _currentDate = date;
     _isLoading = true; notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 300));
-    // Only show reservations for THIS specific date
-    _reservations = _allReservations.where((r) {
-      final start = r['startTime'] as DateTime;
-      return start.year == date.year && start.month == date.month && start.day == date.day;
-    }).toList();
+    try {
+      final startOfDay = DateTime(date.year, date.month, date.day);
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+      final snapshot = await _firestore.collection('reservations')
+          .where('startTime', isGreaterThanOrEqualTo: startOfDay.toIso8601String())
+          .where('startTime', isLessThan: endOfDay.toIso8601String()).get();
+      _reservations = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        data['startTime'] = DateTime.parse(data['startTime']);
+        data['endTime'] = DateTime.parse(data['endTime']);
+        return data;
+      }).toList();
+    } catch (e) {}
     _isLoading = false; notifyListeners();
   }
-
-  // Store all reservations here
-  static final List<Map<String, dynamic>> _allReservations = [];
 
   Color getTimeSlotColor(DateTime time) {
     final now = DateTime.now();
@@ -31,31 +41,36 @@ class ReservationProvider with ChangeNotifier {
   }
 
   Map<String, dynamic>? getReservationAtTime(DateTime time) {
-    for (var r in _reservations) {
-      if (time.isAfter(r['startTime']) && time.isBefore(r['endTime'])) return r;
-    }
+    for (var r in _reservations) { if (time.isAfter(r['startTime']) && time.isBefore(r['endTime'])) return r; }
     return null;
   }
 
-  Future<void> addReservation(Map<String, dynamic> data) async {
-    data['id'] = DateTime.now().millisecondsSinceEpoch.toString();
-    data['createdAt'] = DateTime.now();
-    _allReservations.add(data);
-    // Reload current date
-    if (_reservations.isNotEmpty) {
-      loadReservationsForDate(_reservations.first['startTime']);
+  bool hasConflict(DateTime start, DateTime end) {
+    for (var r in _reservations) {
+      if (start.isBefore(r['endTime']) && end.isAfter(r['startTime'])) return true;
+      if (start.isAfter(r['startTime'].subtract(const Duration(minutes: 30))) && start.isBefore(r['startTime'])) return true;
     }
-    notifyListeners();
+    return false;
   }
 
-  Future<void> updateReservation(String id, Map<String, dynamic> data) async {
-    final i = _allReservations.indexWhere((r) => r['id'] == id);
-    if (i != -1) { _allReservations[i] = {..._allReservations[i], ...data}; notifyListeners(); }
+  Future<void> addReservation(Map<String, dynamic> data) async {
+    final start = data['startTime'] as DateTime;
+    final end = data['endTime'] as DateTime;
+    if (hasConflict(start, end)) return;
+    await _firestore.collection('reservations').add({
+      'customerName': data['customerName'], 'employeeName': data['employeeName'],
+      'startTime': start.toIso8601String(), 'endTime': end.toIso8601String(),
+      'hasDrinks': data['hasDrinks'] ?? false, 'drinksDetails': data['drinksDetails'] ?? '',
+      'hasFood': data['hasFood'] ?? false, 'foodDetails': data['foodDetails'] ?? '',
+      'hasSpecialDecorations': data['hasSpecialDecorations'] ?? false, 'decoDetails': data['decoDetails'] ?? '',
+      'hasBirthdayCake': data['hasBirthdayCake'] ?? false, 'cakeDetails': data['cakeDetails'] ?? '',
+      'specialNotes': data['specialNotes'] ?? '', 'createdAt': DateTime.now().toIso8601String(),
+    });
+    loadReservationsForDate(_currentDate);
   }
 
   Future<void> deleteReservation(String id) async {
-    _allReservations.removeWhere((r) => r['id'] == id);
-    _reservations.removeWhere((r) => r['id'] == id);
-    notifyListeners();
+    await _firestore.collection('reservations').doc(id).delete();
+    loadReservationsForDate(_currentDate);
   }
 }
