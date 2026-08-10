@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "258353555803",
+    "project_id": "nile-cruise-manager-1392d",
+    "storage_bucket": "nile-cruise-manager-1392d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:258353555803:android:a2b74f3169cc0c1002d27e",
+        "android_client_info": {
+          "package_name": "com.example.nile_cruise_manager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAPK1IGv0FJBF3s_88PWebpeY3rTOaoQMk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
