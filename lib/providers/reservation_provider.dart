@@ -38,22 +38,25 @@ class ReservationProvider with ChangeNotifier {
   Color getTimeSlotColor(DateTime time) {
     final now = DateTime.now();
     
-    // Check if this exact time slot is within ANY reservation
     for (var r in _allReservations) {
       final start = r['startTime'] as DateTime;
       final end = r['endTime'] as DateTime;
-      
-      // This exact half-hour slot is inside a reservation
-      if (time.isAfter(start.subtract(const Duration(seconds: 1))) && time.isBefore(end)) {
-        if (time.isBefore(now)) return Colors.red.withOpacity(0.3);
-        return Colors.amber.withOpacity(0.7);
-      }
-      
-      // This slot is within 30 min before a reservation (prep time)
       final prepStart = start.subtract(const Duration(minutes: 30));
-      if (time.isAfter(prepStart.subtract(const Duration(seconds: 1))) && time.isBefore(start)) {
+      
+      // Check if this half-hour SLOT is prep time (the 30 min BEFORE reservation starts)
+      // A slot at 9:30 covers 9:30-10:00, so if reservation starts at 10:00, this slot IS prep
+      final slotEnd = time.add(const Duration(minutes: 30));
+      
+      // This slot overlaps with prep time (between prepStart and start)
+      if (slotEnd.isAfter(prepStart) && time.isBefore(start)) {
         if (time.isBefore(now)) return Colors.red.withOpacity(0.3);
         return Colors.blue.withOpacity(0.5);
+      }
+      
+      // This slot overlaps with the actual reservation (between start and end)
+      if (slotEnd.isAfter(start) && time.isBefore(end)) {
+        if (time.isBefore(now)) return Colors.red.withOpacity(0.3);
+        return Colors.amber.withOpacity(0.7);
       }
     }
     
@@ -65,21 +68,26 @@ class ReservationProvider with ChangeNotifier {
     for (var r in _allReservations) {
       final start = r['startTime'] as DateTime;
       final end = r['endTime'] as DateTime;
-      if (time.isAfter(start.subtract(const Duration(seconds: 1))) && time.isBefore(end)) {
+      final slotEnd = time.add(const Duration(minutes: 30));
+      if (slotEnd.isAfter(start) && time.isBefore(end)) {
         return r;
       }
     }
     return null;
   }
 
-  bool hasConflict(DateTime start, DateTime end) {
+  bool hasConflict(DateTime newStart, DateTime newEnd) {
     for (var r in _allReservations) {
       final rStart = r['startTime'] as DateTime;
       final rEnd = r['endTime'] as DateTime;
-      final prepStart = rStart.subtract(const Duration(minutes: 30));
+      final rPrepStart = rStart.subtract(const Duration(minutes: 30));
       
-      // New reservation overlaps with existing reservation OR its prep time
-      if (start.isBefore(rEnd) && end.isAfter(prepStart)) return true;
+      // New reservation overlaps with existing reservation
+      if (newStart.isBefore(rEnd) && newEnd.isAfter(rStart)) return true;
+      // New reservation overlaps with existing prep time
+      if (newStart.isBefore(rStart) && newEnd.isAfter(rPrepStart)) return true;
+      // Existing reservation's prep time overlaps with new reservation
+      if (rStart.isBefore(newEnd) && rEnd.isAfter(newStart.subtract(const Duration(minutes: 30)))) return true;
     }
     return false;
   }
